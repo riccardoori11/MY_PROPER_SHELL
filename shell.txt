@@ -1,0 +1,83 @@
+```
+SKELETEN0++: HOW A SHELL WORKS
+
+Input:
+- User keystrokes (commands)
+- Environment variables (e.g., PATH, HOME)
+- System state (foreground/background jobs, terminal I/O)
+
+Mechanism:
+
+→ Input Loop:
+   - Shell prints a prompt (e.g., "bash$ ")
+   - Reads a line of input from stdin (via `readline()`, `fgets()`, or low-level `read()`)
+
+→ Lexical Analysis:
+   - Input string is tokenized (split into command + arguments)
+   - Handles quoted strings, escape sequences, variable substitution (e.g., `$HOME` → `/home/user`)
+
+→ Parsing and Execution Tree Construction:
+   - Input is parsed into a command structure (e.g., command list, pipelines, redirections)
+   - Determines execution mode: sequential, conditional (`&&`, `||`), pipeline, background (`&`)
+   - May recursively construct a syntax tree if input includes nested commands or subshells
+
+→ Command Dispatch:
+   - Built-in command? → Execute directly in the shell process (`cd`, `exit`, `export`)
+   - External command? → Proceed to forking
+
+→ Process Forking:
+   - Shell calls `fork()` to create a child process
+   - Parent continues the loop; child prepares for execution
+
+→ File Descriptor Manipulation:
+   - If I/O redirection is requested:
+       - Open specified file(s)
+       - Use `dup2()` to redirect stdin (fd 0), stdout (fd 1), stderr (fd 2)
+   - If pipeline: parent and child share pipe fds; child reads from `pipe[0]`, parent writes to `pipe[1]`
+
+→ Program Execution:
+   - Child calls `execvp(argv[0], argv)` to replace its image with the target program
+   - If `execvp()` fails, it prints error and exits
+
+→ Parent Synchronization:
+   - Parent optionally calls `waitpid()` to block until child terminates (foreground job)
+   - Or registers job and returns immediately (background job)
+
+→ Signal and Job Handling:
+   - Shell may trap signals like `SIGINT` (Ctrl+C), `SIGTSTP` (Ctrl+Z), `SIGCHLD` (child termination)
+   - Job control: shell keeps track of process groups and terminals via `tcsetpgrp()`
+
+→ Loop Continues:
+   - After child finishes or is backgrounded, shell returns to prompt loop
+
+Output:
+- Executed command output appears on stdout (or redirected destination)
+- Exit status saved (accessible via `$?`)
+- Terminal state restored (if modified)
+- Prompt is reprinted for next command
+
+Pathologies:
+- Fork bombs (infinite fork loops) exhaust process table
+- Misparsed redirection or pipe causes silent failure
+- Incorrect job control causes terminal to hang or fail to resume foreground
+- Forgotten `wait()` leads to zombie processes
+
+Summary Flow:
+Keystroke input → Tokenization → Parse into execution tree → Built-in or fork → Redirection setup → `execvp()` → Wait or background → Loop
+```
+
+**Concise Summary for Articulation:**
+A shell is a loop that reads user input, parses it into commands, forks if necessary, sets up redirection or pipes, executes with `execvp`, then synchronizes with the child process. It handles signals, background jobs, and terminal control while managing all user–kernel boundaries through system calls.
+
+**Articulation-Ready Version:**
+A shell works by reading user commands, breaking them down into tokens, and deciding whether to execute them internally or by spawning new processes. For external commands, it forks the current process, configures input/output if redirection or pipes are requested, and replaces the child process with the command using `execvp`. The parent then waits for completion or tracks the background job. This cycle repeats, giving the illusion of an interactive command environment, while underneath it orchestrates a complex flow of process control, file descriptor manipulation, and system-level interactions.
+
+
+
+
+
+
+A shell is divided into 3 things: the parser, the executor, shell subsytem
+
+
+A parser is divided into 2 parts: Lexical analyzer which takes the input characters and transforms them into tokens and a parser that proccesses the tokens according to grammar and build the command table 
